@@ -576,25 +576,42 @@ class EnhancedAccountWarmup(AccountWarmup):
             return 'error'
 
     def run_enhanced_warmup_cycle_with_facebook_proof(self, account):
-        """Enhanced warmup with FACEBOOK-PROOF browser protection - FIXED DETECTION"""
+        """Enhanced warmup with FIXED STICKY proxy support - COMPLETE IMPLEMENTATION"""
         try:
             account_id = account['account_id']
             current_phase = account.get('warmup_phase', 'phase_1')
             
-            logger.info(f"🚀 Starting FACEBOOK-PROOF enhanced warmup for account {account_id}")
+            logger.info(f"🚀 Starting FIXED STICKY PROXY enhanced warmup for account {account_id}")
             logger.info("🛡️ FACEBOOK-PROOF MODE: Advanced anti-detection enabled")
+            logger.info("🎯 CRITICAL: Using consistent location to prevent video selfie verification")
+            logger.info("🔧 NEW: Enhanced error handling and fallback configurations")
+            
+            # Pre-flight check: Diagnose any proxy issues
+            logger.info("🔍 Running pre-flight proxy diagnostics...")
+            if not self.diagnose_proxy_issues_for_account(account_id):
+                logger.error(f"❌ Pre-flight proxy diagnostics failed for account {account_id}")
+                logger.error("🔧 Please check your SOAX credentials and endpoint configuration")
+                return False
+            
+            logger.info("✅ Pre-flight proxy diagnostics passed")
             
             # Determine login credential
             login_credential = self.determine_login_credential(account)
             password = account['password']
             
-            # Get working proxy (same robust method)
-            proxy_info = self.get_working_us_proxy_for_warmup()
+            # Get FIXED STICKY proxy for this specific account  
+            proxy_info = self.get_working_us_proxy_for_warmup(account)
             if not proxy_info:
-                logger.error(f"❌ No working proxy available for account {account_id}")
+                logger.error(f"❌ No FIXED sticky proxy available for account {account_id}")
                 return False
             
-            # Setup FACEBOOK-PROOF browser
+            logger.info(f"✅ FIXED sticky proxy obtained for account {account_id}")
+            logger.info(f"   📍 Consistent Location: {proxy_info.get('verified_city', 'Unknown')}, {proxy_info.get('verified_region', 'Unknown')}")
+            logger.info(f"   🔒 Same location will ALWAYS be used for this account")
+            logger.info(f"   🔧 Config used: {proxy_info.get('config_used', 'Unknown')}")
+            logger.info(f"   🌍 Verified IP: {proxy_info.get('verified_ip', 'Unknown')}")
+            
+            # Setup FACEBOOK-PROOF browser with sticky proxy
             if not self.setup_browser_with_facebook_proof_proxy(proxy_info):
                 logger.error(f"❌ FACEBOOK-PROOF browser setup failed for account {account_id}")
                 return False
@@ -608,7 +625,7 @@ class EnhancedAccountWarmup(AccountWarmup):
             
             logger.info(f"✅ FACEBOOK-PROOF login successful for account {account_id}")
             
-            # FIXED: Use NEW improved location detection after login
+            # FIXED: Use IMPROVED location detection after login
             logger.info("🔍 Final FACEBOOK-PROOF location verification after login...")
             location_result = self.final_location_check_after_login()
             
@@ -617,33 +634,40 @@ class EnhancedAccountWarmup(AccountWarmup):
             elif location_result == 'egypt':
                 logger.warning("⚠️ Account shows Egypt location after login (account history)")
                 logger.warning("🔄 This is common for accounts originally registered in Egypt")
-                logger.info("✅ Continuing warmup anyway - proxy and login are working fine")
+                logger.info("✅ Continuing warmup anyway - sticky proxy and login are working fine")
             elif location_result == 'unclear':
                 logger.info("❓ Location unclear after login, but continuing warmup")
             else:  # location_result == 'error'
                 logger.warning("⚠️ Could not verify location after login, but continuing")
             
             # IMPORTANT: Continue with warmup activities regardless of location
-            logger.info("🚀 Starting enhanced warmup activities...")
+            logger.info("🚀 Starting enhanced warmup activities with STICKY proxy protection...")
             
-            # Run enhanced warmup activities
+            # Run enhanced warmup cycle
             success = self.enhanced_warmup_cycle(account)
             
             # Cleanup browser
             self.cleanup_browser()
             
             if success:
-                self.db.update_account_status(account_id, "warming", "FACEBOOK-PROOF enhanced warmup completed successfully")
+                # Log successful sticky proxy usage
+                if hasattr(self, 'sticky_proxy_manager'):
+                    self.sticky_proxy_manager.log_location_usage(account_id, proxy_info)
+                
+                self.db.update_account_status(account_id, "warming", "FACEBOOK-PROOF enhanced warmup completed successfully with sticky proxy")
                 logger.info(f"✅ FACEBOOK-PROOF enhanced warmup successful for account {account_id}")
                 logger.info("🎯 Account is now warmed up and ready for use!")
+                logger.info(f"🔒 Location consistency maintained: {proxy_info.get('verified_city', 'Unknown')}, {proxy_info.get('verified_region', 'Unknown')}")
+                return True
             else:
                 self.db.update_account_status(account_id, "warmup_failed", "FACEBOOK-PROOF enhanced warmup activities failed")
                 logger.error(f"❌ FACEBOOK-PROOF enhanced warmup activities failed for account {account_id}")
-            
-            return success
-            
+                return False
+                
         except Exception as e:
             logger.error(f"❌ Error in FACEBOOK-PROOF enhanced warmup: {e}")
+            import traceback
+            traceback.print_exc()
             self.cleanup_browser()
             return False
 
@@ -2462,59 +2486,190 @@ class EnhancedAccountWarmup(AccountWarmup):
             self.cleanup_browser()
             return False
    
-    def get_working_us_proxy_for_warmup(self):
-        """Get working US proxy for warmup using SAME methods as account manager"""
+    def get_working_us_proxy_for_warmup(self, account=None):
+        """Get working US proxy with FIXED STICKY location for account"""
         try:
-            logger.info("🎯 Getting working US proxy for warmup (using account manager methods)...")
+            logger.info("🎯 Getting FIXED STICKY working US proxy for warmup...")
             
-            # Use the enhanced account manager's proven proxy methods
-            # First try to get a basic working proxy
-            proxy = self.get_soax_proxy_with_fallback_warmup()
-            if not proxy:
-                logger.error("❌ Could not get any working proxy using fallback methods")
-                return None
+            # Initialize sticky proxy manager if not exists
+            if not hasattr(self, 'sticky_proxy_manager'):
+                self.sticky_proxy_manager = StickyProxyManager(self.config, self.db)
             
-            logger.info("✅ Got basic proxy connectivity for warmup")
+            account_id = account.get('account_id') if account else None
             
-            # Try to verify US location (but don't fail if verification fails)
-            logger.info("🔍 Attempting US location verification for warmup...")
-            verification = self.verify_us_proxy_location_fast_warmup(proxy)
+            if account_id:
+                # Get consistent proxy for this specific account using FIXED version
+                proxy = self.sticky_proxy_manager.get_consistent_proxy_for_account(account_id)
+                
+                if proxy:
+                    logger.info(f"✅ FIXED STICKY proxy obtained for account {account_id}:")
+                    logger.info(f"   📍 Consistent Location: {proxy.get('verified_city', 'Unknown')}, {proxy.get('verified_region', 'Unknown')}")
+                    logger.info(f"   🔒 Same location will ALWAYS be used for this account")
+                    logger.info(f"   🔧 Config used: {proxy.get('config_used', 'Unknown')}")
+                    logger.info(f"   🌍 Verified IP: {proxy.get('verified_ip', 'Unknown')}")
+                    return proxy
+                else:
+                    logger.error(f"❌ Failed to get FIXED sticky proxy for account {account_id}")
             
-            if verification['verified']:
-                logger.info("🎉 Perfect! Warmup proxy verified as US-based")
-                proxy.update({
-                    'verified_ip': verification['ip'],
-                    'verified_country': verification['country'],
-                    'verified_region': verification['region'],
-                    'verified_city': verification['city'],
-                    'verification_service': verification['service'],
-                    'verified_at': datetime.now().isoformat(),
-                    'us_verified': True
-                })
-            else:
-                logger.warning("⚠️ Could not verify US location for warmup, but proxy is working")
-                logger.warning("🔥 Proceeding anyway - SOAX should be providing US proxies")
-                proxy.update({
-                    'verified_ip': 'Unknown',
-                    'verified_country': 'US (Assumed)',
-                    'verified_region': proxy.get('geo_region', 'Unknown'),
-                    'verified_city': proxy.get('geo_city', 'Unknown'),
-                    'verification_service': 'None (Timeout)',
-                    'verified_at': datetime.now().isoformat(),
-                    'us_verified': False,
-                    'note': 'SOAX proxy with working connectivity but failed location verification due to timeouts'
-                })
-            
-            logger.info("🎯 Warmup proxy ready for use!")
-            logger.info(f"   📡 Endpoint: {proxy.get('endpoint')}")
-            logger.info(f"   🌍 Location: {proxy.get('verified_city', 'Unknown')}, {proxy.get('verified_region', 'Unknown')}")
-            logger.info(f"   🇺🇸 US Verified: {'✅' if proxy.get('us_verified') else '❓ (Assumed)'}")
-            
-            return proxy
+            # Fallback to original method if account_id not provided (NOT RECOMMENDED)
+            logger.warning("⚠️ No account ID provided - using non-sticky proxy (NOT RECOMMENDED)")
+            return self.get_soax_proxy_with_fallback_warmup()
             
         except Exception as e:
-            logger.error(f"💥 Error getting working US proxy for warmup: {e}")
+            logger.error(f"💥 Error getting fixed sticky proxy for warmup: {e}")
             return None
+
+    # Add this NEW method to help with diagnostics
+    def diagnose_proxy_issues_for_account(self, account_id):
+        """Diagnose why proxy creation might be failing for an account - NEW DIAGNOSTIC METHOD"""
+        try:
+            logger.info(f"🔍 DIAGNOSING proxy issues for account {account_id}:")
+            
+            # Check 1: SOAX credentials
+            logger.info("🔧 Checking SOAX credentials...")
+            if not hasattr(self.config, 'SOAX_USERNAME') or not self.config.SOAX_USERNAME:
+                logger.error("❌ SOAX_USERNAME is missing or empty")
+                return False
+            
+            if not hasattr(self.config, 'SOAX_PASSWORD') or not self.config.SOAX_PASSWORD:
+                logger.error("❌ SOAX_PASSWORD is missing or empty")
+                return False
+            
+            endpoint = getattr(self.config, 'SOAX_ENDPOINT', 'proxy.soax.com:5000')
+            logger.info(f"✅ SOAX credentials found - endpoint: {endpoint}")
+            
+            # Check 2: Initialize sticky proxy manager
+            if not hasattr(self, 'sticky_proxy_manager'):
+                from sticky_proxy_manager import StickyProxyManager
+                self.sticky_proxy_manager = StickyProxyManager(self.config, self.db)
+            
+            # Check 3: Try to create a simple test proxy
+            logger.info("🧪 Testing simple proxy creation...")
+            test_proxy = {
+                'type': 'soax',
+                'endpoint': endpoint,
+                'username': self.config.SOAX_USERNAME,
+                'password': self.config.SOAX_PASSWORD
+            }
+            
+            # Test basic connectivity
+            if self.sticky_proxy_manager.test_proxy_connectivity_robust(test_proxy):
+                logger.info("✅ Basic SOAX proxy connectivity works")
+            else:
+                logger.error("❌ Basic SOAX proxy connectivity FAILED")
+                logger.error("   This indicates a fundamental issue with your SOAX credentials or endpoint")
+                return False
+            
+            # Check 4: Try sticky proxy creation
+            logger.info(f"🎯 Testing sticky proxy creation for account {account_id}...")
+            sticky_proxy = self.sticky_proxy_manager.create_sticky_proxy_for_account_fixed(account_id)
+            
+            if sticky_proxy:
+                logger.info("✅ Sticky proxy creation successful!")
+                logger.info(f"   📍 Location: {sticky_proxy.get('verified_city')}, {sticky_proxy.get('verified_region')}")
+                logger.info(f"   🔗 Session ID: {sticky_proxy.get('session_id')}")
+                logger.info(f"   🔧 Config: {sticky_proxy.get('config_used')}")
+                return True
+            else:
+                logger.error("❌ Sticky proxy creation FAILED")
+                return False
+            
+        except Exception as e:
+            logger.error(f"💥 Error in proxy diagnostics: {e}")
+            return False
+        
+    def run_enhanced_warmup_cycle_with_fixed_sticky_proxy(self, account):
+        """Enhanced warmup with FIXED STICKY proxy support - MAIN ENTRY POINT"""
+        try:
+            account_id = account['account_id']
+            
+            logger.info(f"🚀 Starting FIXED STICKY PROXY warmup for account {account_id}")
+            logger.info("🎯 CRITICAL: Using consistent location to prevent video selfie verification")
+            logger.info("🔧 NEW: Enhanced error handling and fallback configurations")
+            
+            # Pre-flight check: Diagnose any proxy issues
+            logger.info("🔍 Running pre-flight proxy diagnostics...")
+            if not self.diagnose_proxy_issues_for_account(account_id):
+                logger.error(f"❌ Pre-flight proxy diagnostics failed for account {account_id}")
+                logger.error("🔧 Please check your SOAX credentials and endpoint configuration")
+                return False
+            
+            logger.info("✅ Pre-flight proxy diagnostics passed")
+            
+            # Get FIXED STICKY proxy for this specific account
+            proxy_info = self.get_working_us_proxy_for_warmup(account)
+            
+            if not proxy_info:
+                logger.error(f"❌ No FIXED sticky proxy available for account {account_id}")
+                return False
+            
+            logger.info(f"✅ FIXED sticky proxy obtained for account {account_id}")
+            
+            # Continue with existing warmup process
+            login_credential = self.determine_login_credential(account)
+            password = account['password']
+            twofa_secret = account.get('twofa_secret')
+            
+            # Setup browser with FIXED proxy
+            if not self.setup_browser_with_facebook_proof_proxy(proxy_info):
+                logger.error(f"❌ Browser setup failed for account {account_id}")
+                return False
+            
+            # Login with robust method
+            login_success = self.login_facebook_robust(login_credential, password, twofa_secret)
+            
+            if login_success:
+                logger.info(f"✅ FIXED STICKY PROXY LOGIN SUCCESS for account {account_id}")
+                logger.info("🎯 Consistent location maintained - checkpoint risk minimized")
+                
+                # Continue with warmup activities
+                success = self.enhanced_warmup_cycle(account)
+                self.cleanup_browser()
+                
+                if success:
+                    logger.info(f"🎉 COMPLETE SUCCESS: Account {account_id} warmed up with consistent location")
+                    return True
+                else:
+                    logger.error(f"❌ Warmup activities failed for account {account_id}")
+                    return False
+            else:
+                logger.error(f"❌ Login failed for account {account_id} despite FIXED sticky proxy")
+                self.cleanup_browser()
+                return False
+                
+        except Exception as e:
+            logger.error(f"💥 Error in FIXED sticky proxy warmup: {e}")
+            self.cleanup_browser()
+            return False
+
+    # Add this helper method to debug proxy assignments
+    def show_all_sticky_proxy_assignments(self):
+        """Show all current sticky proxy assignments - DEBUGGING METHOD"""
+        try:
+            if not hasattr(self, 'sticky_proxy_manager'):
+                from sticky_proxy_manager import StickyProxyManager
+                self.sticky_proxy_manager = StickyProxyManager(self.config, self.db)
+            
+            assignments = self.sticky_proxy_manager.proxy_assignments
+            
+            if not assignments:
+                logger.info("📋 No sticky proxy assignments found")
+                return
+            
+            logger.info("📋 CURRENT STICKY PROXY ASSIGNMENTS:")
+            logger.info("=" * 60)
+            
+            for account_id, proxy_data in assignments.items():
+                logger.info(f"   Account {account_id}:")
+                logger.info(f"     📍 Location: {proxy_data.get('verified_city', 'Unknown')}, {proxy_data.get('verified_region', 'Unknown')}")
+                logger.info(f"     🔗 Session ID: {proxy_data.get('session_id', 'Unknown')}")
+                logger.info(f"     🔧 Config: {proxy_data.get('config_used', 'Unknown')}")
+                logger.info(f"     📅 Created: {proxy_data.get('created_at', 'Unknown')[:19]}")
+                logger.info(f"     🌍 IP: {proxy_data.get('verified_ip', 'Unknown')}")
+                logger.info("")
+            
+        except Exception as e:
+            logger.error(f"💥 Error showing sticky proxy assignments: {e}")    
         
     def get_soax_proxy_with_fallback_warmup(self):
         """Get SOAX proxy with multiple fallback configurations - WARMUP VERSION"""

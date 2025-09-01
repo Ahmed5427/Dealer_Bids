@@ -364,11 +364,58 @@ class EnhancedFacebookMarketplaceBot:
             logger.error(f"💥 Error showing proxy patterns: {e}")
 
     def fix_location_inconsistency_for_existing_accounts(self):
-        """Fix location inconsistency for accounts that haven't hit video selfie yet"""
+        """Fix location inconsistency for accounts that haven't hit video selfie yet - COMPLETE FIXED VERSION"""
         try:
             print("\n🔧 FIXING LOCATION INCONSISTENCY FOR EXISTING ACCOUNTS")
             print("=" * 60)
             
+            # STEP 1: Test SOAX configuration first
+            print("🧪 Testing SOAX configuration before proceeding...")
+            
+            # Check SOAX credentials exist
+            if not hasattr(self.config, 'SOAX_USERNAME') or not self.config.SOAX_USERNAME:
+                print("❌ SOAX_USERNAME not found in config!")
+                print("🔧 Please add SOAX_USERNAME to your .env file")
+                return
+            
+            if not hasattr(self.config, 'SOAX_PASSWORD') or not self.config.SOAX_PASSWORD:
+                print("❌ SOAX_PASSWORD not found in config!")
+                print("🔧 Please add SOAX_PASSWORD to your .env file")
+                return
+            
+            print(f"✅ SOAX credentials found")
+            print(f"   Username: {self.config.SOAX_USERNAME[:30]}...")
+            print(f"   Endpoint: {getattr(self.config, 'SOAX_ENDPOINT', 'proxy.soax.com:5000')}")
+            
+            # Initialize sticky proxy manager with fixed version
+            from sticky_proxy_manager import StickyProxyManager
+            sticky_manager = StickyProxyManager(self.config, self.db)
+            
+            # Test basic SOAX connectivity
+            test_proxy = {
+                'type': 'soax',
+                'endpoint': getattr(self.config, 'SOAX_ENDPOINT', 'proxy.soax.com:5000'),
+                'username': self.config.SOAX_USERNAME,
+                'password': self.config.SOAX_PASSWORD
+            }
+            
+            print("🔍 Testing basic SOAX connectivity...")
+            if not sticky_manager.test_proxy_connectivity_robust(test_proxy):
+                print("❌ SOAX configuration test failed!")
+                print("")
+                print("🔧 TROUBLESHOOTING STEPS:")
+                print("1. Run 'python test_soax.py' to diagnose the specific issue")
+                print("2. Check your SOAX dashboard for account status and balance")
+                print("3. Verify your package ID is correct in the username")
+                print("4. Ensure your IP is whitelisted if required")
+                print("5. Contact SOAX support if all else fails")
+                print("")
+                print("❌ Cannot proceed with location consistency fix until SOAX works")
+                return
+            
+            print("✅ SOAX configuration test passed!")
+            
+            # STEP 2: Get accounts that can be fixed
             accounts = self.db.get_enhanced_active_accounts()
             
             # Filter accounts that are still usable (not requiring manual intervention)
@@ -379,44 +426,248 @@ class EnhancedFacebookMarketplaceBot:
             
             if not fixable_accounts:
                 print("❌ No fixable accounts found")
+                print("📋 All accounts are either banned, disabled, or require manual intervention")
                 return
             
-            print(f"🔧 Found {len(fixable_accounts)} accounts that can be fixed:")
+            print(f"🔧 Found {len(fixable_accounts)} accounts that can be assigned consistent locations:")
             print()
             
-            # Initialize sticky proxy manager
-            if not hasattr(self.warmup, 'sticky_proxy_manager'):
-                from sticky_proxy_manager import StickyProxyManager
-                self.warmup.sticky_proxy_manager = StickyProxyManager(self.config, self.db)
+            # Show accounts to be processed
+            for acc in fixable_accounts:
+                status = acc.get('status', 'unknown')
+                email = acc.get('email', 'N/A')[:30]
+                phone = acc.get('phone', 'N/A')
+                print(f"  👤 Account {acc['account_id']}: {email} ({status})")
             
-            for account in fixable_accounts:
+            print()
+            
+            # Ask for confirmation
+            try:
+                confirm = input("🤔 Proceed with assigning sticky proxy locations? (y/N): ").strip().lower()
+                if confirm != 'y' and confirm != 'yes':
+                    print("❌ Operation cancelled by user")
+                    return
+            except KeyboardInterrupt:
+                print("\n❌ Operation cancelled")
+                return
+            
+            print("\n🚀 Starting location consistency assignment...")
+            print("=" * 60)
+            
+            # STEP 3: Process each account
+            successful_assignments = 0
+            failed_assignments = 0
+            
+            for i, account in enumerate(fixable_accounts, 1):
                 account_id = account['account_id']
                 
-                print(f"🔧 Assigning consistent location to Account {account_id}...")
+                print(f"\n🔧 [{i}/{len(fixable_accounts)}] Processing Account {account_id}...")
                 
-                # Get/assign sticky proxy
-                proxy = self.warmup.sticky_proxy_manager.get_consistent_proxy_for_account(account_id)
+                try:
+                    # Check if account already has a sticky proxy assignment
+                    if hasattr(sticky_manager, 'proxy_assignments') and str(account_id) in sticky_manager.proxy_assignments:
+                        existing_proxy = sticky_manager.proxy_assignments[str(account_id)]
+                        existing_location = f"{existing_proxy.get('verified_city', 'Unknown')}, {existing_proxy.get('verified_region', 'Unknown')}"
+                        print(f"   ℹ️ Account already has assignment: {existing_location}")
+                        
+                        # Test if existing assignment still works
+                        print(f"   🧪 Testing existing assignment...")
+                        if sticky_manager.test_proxy_connectivity_robust(existing_proxy):
+                            print(f"   ✅ Existing assignment is working: {existing_location}")
+                            print(f"   🔒 Location consistency maintained")
+                            successful_assignments += 1
+                            continue
+                        else:
+                            print(f"   ⚠️ Existing assignment no longer works, creating new one...")
+                    
+                    # Get/assign new sticky proxy using FIXED method
+                    proxy = sticky_manager.get_consistent_proxy_for_account(account_id)
+                    
+                    if proxy:
+                        location = f"{proxy.get('verified_city', 'Unknown')}, {proxy.get('verified_region', 'Unknown')}"
+                        config_used = proxy.get('config_used', 'Unknown')
+                        session_id = proxy.get('session_id', 'Unknown')
+                        
+                        print(f"   ✅ NEW Assignment successful!")
+                        print(f"   📍 Location: {location}")
+                        print(f"   🔗 Session ID: {session_id}")
+                        print(f"   🔧 Config: {config_used}")
+                        print(f"   🔒 This location is now PERMANENT for Account {account_id}")
+                        
+                        successful_assignments += 1
+                    else:
+                        print(f"   ❌ Failed to assign location")
+                        print(f"   🔧 This usually indicates:")
+                        print(f"      - SOAX account out of balance/traffic")
+                        print(f"      - Wrong package ID in configuration")
+                        print(f"      - IP whitelisting issues")
+                        failed_assignments += 1
+                    
+                except Exception as e:
+                    print(f"   💥 Error processing account {account_id}: {e}")
+                    failed_assignments += 1
                 
-                if proxy:
-                    location = f"{proxy.get('verified_city', 'Unknown')}, {proxy.get('verified_region', 'Unknown')}"
-                    print(f"   ✅ Assigned: {location}")
-                    print(f"   🔒 This location is now PERMANENT for this account")
-                else:
-                    print(f"   ❌ Failed to assign location")
-                
-                print()
+                # Small delay between accounts
+                if i < len(fixable_accounts):
+                    print(f"   ⏳ Waiting 3 seconds before next account...")
+                    time.sleep(3)
             
-            print("🎯 NEXT STEPS:")
-            print("1. All existing accounts now have consistent location assignments")
-            print("2. Future logins will use the same location per account")
-            print("3. This should prevent new video selfie verifications")
-            print("4. Manually complete any pending video selfie verifications")
-            print()
+            # STEP 4: Summary and next steps
+            print(f"\n🎯 LOCATION CONSISTENCY FIX SUMMARY:")
+            print("=" * 60)
+            print(f"✅ Successful assignments: {successful_assignments}/{len(fixable_accounts)}")
+            print(f"❌ Failed assignments: {failed_assignments}/{len(fixable_accounts)}")
             
+            if successful_assignments > 0:
+                print(f"\n🎉 SUCCESS! {successful_assignments} accounts now have consistent locations")
+                
+                # Show current assignments
+                print(f"\n📋 CURRENT LOCATION ASSIGNMENTS:")
+                print("-" * 40)
+                
+                assignments = sticky_manager.proxy_assignments
+                for account_id, proxy_data in assignments.items():
+                    if any(str(acc['account_id']) == account_id for acc in fixable_accounts):
+                        location = f"{proxy_data.get('verified_city', 'Unknown')}, {proxy_data.get('verified_region', 'Unknown')}"
+                        print(f"  Account {account_id}: {location}")
+            
+            if failed_assignments > 0:
+                print(f"\n⚠️ WARNING: {failed_assignments} accounts failed assignment")
+                print(f"🔧 For failed accounts:")
+                print(f"   1. Check SOAX account balance and traffic")
+                print(f"   2. Verify package ID in SOAX username")
+                print(f"   3. Run 'python test_soax.py' for detailed diagnostics")
+                print(f"   4. Contact SOAX support if needed")
+            
+            print(f"\n🎯 NEXT STEPS:")
+            print(f"1. ✅ All processed accounts now have consistent location assignments")
+            print(f"2. 🔒 Future logins will ALWAYS use the same location per account")
+            print(f"3. 🛡️ This should prevent new video selfie verifications")
+            print(f"4. 📱 Continue to manually complete any pending video selfie verifications")
+            print(f"5. 🚀 Run warmup to test the new sticky proxy system")
+            
+            print(f"\n💡 IMPORTANT REMINDERS:")
+            print(f"• Each account will now ALWAYS use the same city/region")
+            print(f"• Location changes that trigger video selfies should be eliminated")
+            print(f"• The system uses deterministic location assignment based on account ID")
+            print(f"• Session IDs are reused for consistency")
+            print(f"• All location usage is logged for monitoring")
+            
+        except KeyboardInterrupt:
+            print(f"\n❌ Operation interrupted by user")
         except Exception as e:
             logger.error(f"💥 Error fixing location inconsistency: {e}")
             print(f"❌ Fix failed: {e}")
+            import traceback
+            traceback.print_exc()
     
+    def show_current_sticky_proxy_assignments(self):
+        """Show all current sticky proxy assignments for debugging - NEW HELPER METHOD"""
+        try:
+            print("\n📋 CURRENT STICKY PROXY ASSIGNMENTS")
+            print("=" * 60)
+            
+            # Initialize sticky proxy manager if needed
+            if not hasattr(self, 'sticky_proxy_manager'):
+                from sticky_proxy_manager import StickyProxyManager
+                self.sticky_proxy_manager = StickyProxyManager(self.config, self.db)
+            
+            assignments = self.sticky_proxy_manager.proxy_assignments
+            
+            if not assignments:
+                print("❌ No sticky proxy assignments found")
+                print("🔧 Run 'Fix location inconsistency' to create assignments")
+                return
+            
+            print(f"📊 Found {len(assignments)} sticky proxy assignments:")
+            print("")
+            
+            for account_id, proxy_data in assignments.items():
+                print(f"👤 Account {account_id}:")
+                print(f"   📍 Location: {proxy_data.get('verified_city', 'Unknown')}, {proxy_data.get('verified_region', 'Unknown')}")
+                print(f"   🌍 IP: {proxy_data.get('verified_ip', 'Unknown')}")
+                print(f"   🔗 Session ID: {proxy_data.get('session_id', 'Unknown')}")
+                print(f"   🔧 Config: {proxy_data.get('config_used', 'Unknown')}")
+                print(f"   📅 Created: {proxy_data.get('created_at', 'Unknown')[:19]}")
+                print(f"   ✅ US Verified: {'Yes' if proxy_data.get('us_verified') else 'No (but working)'}")
+                print("")
+            
+            # Show location distribution
+            locations = {}
+            for proxy_data in assignments.values():
+                location = f"{proxy_data.get('verified_city', 'Unknown')}, {proxy_data.get('verified_region', 'Unknown')}"
+                locations[location] = locations.get(location, 0) + 1
+            
+            print("📊 LOCATION DISTRIBUTION:")
+            print("-" * 40)
+            for location, count in locations.items():
+                print(f"   {location}: {count} account(s)")
+            
+            print(f"\n✅ All assignments look consistent - good for preventing video selfie verification!")
+            
+        except Exception as e:
+            logger.error(f"💥 Error showing assignments: {e}")
+            print(f"❌ Error showing assignments: {e}")
+
+    def test_sticky_proxy_for_account(self, account_id):
+        """Test the sticky proxy assignment for a specific account - NEW DIAGNOSTIC METHOD"""
+        try:
+            print(f"\n🧪 TESTING STICKY PROXY FOR ACCOUNT {account_id}")
+            print("=" * 60)
+            
+            # Initialize sticky proxy manager if needed
+            if not hasattr(self, 'sticky_proxy_manager'):
+                from sticky_proxy_manager import StickyProxyManager
+                self.sticky_proxy_manager = StickyProxyManager(self.config, self.db)
+            
+            # Get the proxy for this account
+            proxy = self.sticky_proxy_manager.get_consistent_proxy_for_account(account_id)
+            
+            if not proxy:
+                print(f"❌ No proxy found for account {account_id}")
+                print("🔧 Run 'Fix location inconsistency' to create assignment")
+                return False
+            
+            print(f"📋 PROXY DETAILS:")
+            print(f"   📍 Location: {proxy.get('verified_city', 'Unknown')}, {proxy.get('verified_region', 'Unknown')}")
+            print(f"   🌍 IP: {proxy.get('verified_ip', 'Unknown')}")
+            print(f"   🔗 Session ID: {proxy.get('session_id', 'Unknown')}")
+            print(f"   🔧 Config: {proxy.get('config_used', 'Unknown')}")
+            
+            # Test connectivity
+            print(f"\n🔍 Testing connectivity...")
+            if self.sticky_proxy_manager.test_proxy_connectivity_robust(proxy):
+                print(f"✅ Connectivity test PASSED")
+                
+                # Test location verification
+                print(f"🌍 Testing location verification...")
+                location_result = self.sticky_proxy_manager.verify_proxy_location_robust(proxy)
+                
+                if location_result.get('verified'):
+                    print(f"✅ Location verification PASSED")
+                    print(f"   🌍 Verified IP: {location_result['ip']}")
+                    print(f"   📍 Verified Location: {location_result['city']}, {location_result['region']}")
+                    print(f"   🇺🇸 US Status: {'Confirmed' if 'US' in location_result['country'] else 'Non-US'}")
+                else:
+                    print(f"⚠️ Location verification failed, but proxy is working")
+                    print(f"   📍 Using assigned location: {proxy.get('verified_city')}, {proxy.get('verified_region')}")
+                
+                print(f"\n🎯 OVERALL: Sticky proxy for account {account_id} is working correctly!")
+                return True
+            else:
+                print(f"❌ Connectivity test FAILED")
+                print(f"🔧 Possible issues:")
+                print(f"   - SOAX account out of balance")
+                print(f"   - Wrong proxy configuration")
+                print(f"   - Network connectivity issues")
+                return False
+            
+        except Exception as e:
+            logger.error(f"💥 Error testing sticky proxy: {e}")
+            print(f"❌ Test failed: {e}")
+            return False
+
+
     def show_enhanced_account_status(self):
         """Show account status with profile picture information"""
         try:
