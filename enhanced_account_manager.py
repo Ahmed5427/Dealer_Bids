@@ -377,15 +377,14 @@ class EnhancedAccountManager(AccountManager):
     def generate_ai_names(self):
         """Generate realistic first and last names using OpenAI"""
         try:
-            prompt = """Generate a realistic first name and last name for a Facebook profile. 
+            prompt = """Generate a realistic first name and last name for a profile. 
             The names should be:
             - American names or commonly used in the US or English-speaking countries
             - Gender-neutral or varied
-            - Not obviously fake
-            - Suitable for a Facebook profile
+            - Suitable for a profile
             
             Return only the names in this exact format: "FirstName LastName"
-            Example: "Alex Johnson"
+            Example: "Tom Smith"
             """
             
             response = self.openai_client.chat.completions.create(
@@ -449,10 +448,10 @@ class EnhancedAccountManager(AccountManager):
             logger.error(f"Error generating birthday/gender: {e}")
             return 5, 15, 1990, 'male'
     
-    def generate_ai_profile_picture_prompt(self, first_name, gender, birth_year):
+    def generate_ai_profile_picture_prompt(self, first_name, gender):
         """Generate a prompt for AI profile picture creation"""
         try:
-            base_prompt = f"realistic professional headshot photo of a {gender} person who was born in {birth_year}"
+            base_prompt = f"realistic professional headshot photo of a {gender}"
             
             style_variations = [
                 "Add subtle compression, slight imperfections, or slight asymmetry to make it look more natural",
@@ -677,6 +676,50 @@ class EnhancedAccountManager(AccountManager):
             import string
             return ''.join(random.choices(string.ascii_letters + string.digits, k=12))
     
+    def display_ip_before_signup(self, proxy):
+        """Display current IP and location before Facebook signup"""
+        try:
+            if not proxy or not proxy.get('username'):
+                return None
+            
+            proxy_url = f"http://{proxy['username']}:{proxy['password']}@{proxy['endpoint']}"
+            proxy_config = {'http': proxy_url, 'https': proxy_url}
+            
+            response = requests.get(
+                'http://ip-api.com/json/',
+                proxies=proxy_config,
+                timeout=15,
+                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                ip = data.get('query', 'Unknown')
+                city = data.get('city', 'Unknown')
+                region = data.get('regionName', 'Unknown')
+                country = data.get('country', 'Unknown')
+                
+                print(f"\n🎯 CURRENT IP BEFORE FACEBOOK SIGNUP:")
+                print(f"   📍 IP Address: {ip}")
+                print(f"   🏙️ City: {city}")
+                print(f"   🗺️ State: {region}")
+                print(f"   🏳️ Country: {country}")
+                
+                if 'los angeles' in city.lower():
+                    print(f"   ✅ PERFECT: Los Angeles detected!")
+                elif 'california' in region.lower():
+                    print(f"   ✅ GOOD: California location!")
+                elif 'united states' in country.lower():
+                    print(f"   ✅ US location confirmed!")
+                
+                print(f"   🚀 Proceeding with signup...\n")
+                
+                logger.info(f"IP before signup: {ip} ({city}, {region})")
+                
+        except Exception as e:
+            print(f"⚠️ IP check failed: {e}")
+            logger.warning(f"IP check failed: {e}")
+
     def get_working_proxy(self):
         """Get working proxy with smart fallback"""
         return self.get_working_us_proxy_with_smart_fallback()
@@ -838,6 +881,26 @@ class EnhancedAccountManager(AccountManager):
                         }});
                     """)
                     
+                    print("🔍 IP CHECK BEFORE SIGNUP")
+                    print("=" * 50)
+                    
+                    # Simple IP check that always works
+                    try:
+                        import requests
+                        response = requests.get('http://httpbin.org/ip', 
+                            proxies={{'http': 'http://{working_username}:{working_password}@proxy.soax.com:5000', 
+                                    'https': 'http://{working_username}:{working_password}@proxy.soax.com:5000'}}, 
+                            timeout=8)
+                        if response.status_code == 200:
+                            current_ip = response.json().get('origin', 'Unknown')
+                            print(f"📍 Current IP: {{current_ip}}")
+                        else:
+                            print("📍 Current IP: Could not determine")
+                    except:
+                        print("📍 Current IP: Error getting IP")
+                    
+                    print("🚀 Starting signup...")
+
                     print("🌐 Navigating to Facebook...")
                     await page.goto('https://www.facebook.com/', wait_until='networkidle')
                     await asyncio.sleep(random.uniform(3, 5))
@@ -1290,6 +1353,10 @@ class EnhancedAccountManager(AccountManager):
                 'facebook_created': False
             }
             
+            # Step 7.5: Display current IP before Facebook signup
+            logger.info("🔍 Step 7.5: Checking current IP before signup...")
+            self.display_ip_before_signup(proxy)
+
             # Step 8: Actually register the Facebook account
             logger.info("🚀 Step 8: Registering Facebook account...")
             facebook_success = self.register_facebook_account_phone_first_us(profile)
