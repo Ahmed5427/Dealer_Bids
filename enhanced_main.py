@@ -182,6 +182,240 @@ class EnhancedFacebookMarketplaceBot:
         except Exception as e:
             logger.error(f"💥 Error in enhanced setup wizard: {e}")
             return False
+
+    def analyze_account_location_consistency(self):
+        """Analyze which accounts have inconsistent locations - ROOT CAUSE ANALYSIS"""
+        try:
+            print("\n🔍 LOCATION CONSISTENCY ANALYSIS")
+            print("=" * 60)
+            print("🎯 THEORY: Changing proxy locations cause video selfie verification")
+            print()
+            
+            # Get all accounts
+            accounts = self.db.get_enhanced_active_accounts()
+            
+            # Load existing location data if available
+            location_data = {}
+            try:
+                import json
+                if os.path.exists("account_data/location_history.json"):
+                    with open("account_data/location_history.json", 'r') as f:
+                        location_data = json.load(f)
+            except:
+                pass
+            
+            # Analyze accounts
+            high_risk_accounts = []
+            medium_risk_accounts = []
+            low_risk_accounts = []
+            unknown_accounts = []
+            
+            for account in accounts:
+                account_id = str(account['account_id'])
+                
+                if account_id in location_data:
+                    history = location_data[account_id]
+                    locations = set()
+                    
+                    for record in history:
+                        location = f"{record.get('city', 'Unknown')}, {record.get('region', 'Unknown')}"
+                        locations.add(location)
+                    
+                    account_analysis = {
+                        'account': account,
+                        'unique_locations': len(locations),
+                        'locations': list(locations),
+                        'total_logins': len(history)
+                    }
+                    
+                    if len(locations) >= 3:
+                        high_risk_accounts.append(account_analysis)
+                    elif len(locations) == 2:
+                        medium_risk_accounts.append(account_analysis)
+                    elif len(locations) == 1:
+                        low_risk_accounts.append(account_analysis)
+                else:
+                    unknown_accounts.append(account)
+            
+            # Display results
+            print(f"📊 LOCATION ANALYSIS RESULTS:")
+            print(f"   🔴 HIGH RISK (3+ locations): {len(high_risk_accounts)} accounts")
+            print(f"   🟡 MEDIUM RISK (2 locations): {len(medium_risk_accounts)} accounts")  
+            print(f"   🟢 LOW RISK (1 location): {len(low_risk_accounts)} accounts")
+            print(f"   ❓ UNKNOWN (no data): {len(unknown_accounts)} accounts")
+            print()
+            
+            # Show high-risk accounts in detail
+            if high_risk_accounts:
+                print("🔴 HIGH RISK ACCOUNTS (Most likely to get video selfie verification):")
+                print("-" * 60)
+                for analysis in high_risk_accounts:
+                    account = analysis['account']
+                    print(f"  Account {account['account_id']} - {account.get('email', 'Unknown')[:30]}")
+                    print(f"    📍 Used {analysis['unique_locations']} different locations:")
+                    for location in analysis['locations']:
+                        print(f"      • {location}")
+                    print(f"    📊 Total logins: {analysis['total_logins']}")
+                    print(f"    📋 Status: {account.get('status', 'Unknown')}")
+                    
+                    # Check if this account has video selfie requirement
+                    if account.get('status') == 'manual_intervention_required':
+                        print(f"    🚨 CONFIRMED: This account hit video selfie verification!")
+                    
+                    print()
+            
+            # Show medium-risk accounts
+            if medium_risk_accounts:
+                print("🟡 MEDIUM RISK ACCOUNTS (Could trigger video selfie):")
+                print("-" * 60)
+                for analysis in medium_risk_accounts:
+                    account = analysis['account']
+                    print(f"  Account {account['account_id']} - {account.get('email', 'Unknown')[:30]}")
+                    print(f"    📍 Used 2 locations: {', '.join(analysis['locations'])}")
+                    print(f"    📋 Status: {account.get('status', 'Unknown')}")
+                    print()
+            
+            # Show recommendations
+            print("💡 RECOMMENDATIONS:")
+            print("-" * 60)
+            
+            if high_risk_accounts:
+                print("🔴 For HIGH RISK accounts:")
+                print("   1. Expect video selfie verification")
+                print("   2. Complete verification manually")
+                print("   3. After verification, use ONLY ONE consistent location")
+                print("   4. These become premium accounts after manual verification")
+                print()
+            
+            if medium_risk_accounts or high_risk_accounts:
+                print("🎯 For ALL accounts going forward:")
+                print("   1. Implement sticky proxy system (provided above)")
+                print("   2. Each account gets ONE consistent location")
+                print("   3. Never change locations for an account")
+                print("   4. Use account ID to deterministically assign locations")
+                print()
+            
+            print("🔧 IMMEDIATE ACTIONS:")
+            print("   1. Implement the StickyProxyManager code provided")
+            print("   2. Update get_working_us_proxy_for_warmup() method")
+            print("   3. Complete video selfie verification manually for flagged accounts")
+            print("   4. Test new accounts with consistent locations")
+            print()
+            
+            return {
+                'high_risk': len(high_risk_accounts),
+                'medium_risk': len(medium_risk_accounts), 
+                'low_risk': len(low_risk_accounts),
+                'unknown': len(unknown_accounts)
+            }
+            
+        except Exception as e:
+            logger.error(f"💥 Error analyzing location consistency: {e}")
+            print(f"❌ Analysis failed: {e}")
+            return None
+
+    def show_proxy_location_patterns(self):
+        """Show patterns in proxy location usage"""
+        try:
+            print("\n📍 PROXY LOCATION PATTERNS ANALYSIS")
+            print("=" * 60)
+            
+            # This would analyze your SOAX proxy configuration
+            print("🔍 Current SOAX Configuration Analysis:")
+            
+            soax_configs = [
+                {'city': 'phoenix', 'region': 'arizona'},
+                {'city': 'losangeles', 'region': 'california'}, 
+                {'city': 'newyork', 'region': 'newyork'},
+                {'city': 'chicago', 'region': 'illinois'},
+                {'city': 'miami', 'region': 'florida'},
+                # Add Queen Creek and Scottsdale that appeared in your logs
+                {'city': 'queencreek', 'region': 'arizona'},
+                {'city': 'scottsdale', 'region': 'arizona'}
+            ]
+            
+            print("🌍 Locations your bot has been using:")
+            for config in soax_configs:
+                print(f"   • {config['city'].title()}, {config['region'].title()}")
+            
+            print()
+            print("🚨 THE PROBLEM:")
+            print("   Your current code randomly selects from these locations")
+            print("   Same account gets different cities on different logins")
+            print("   Facebook sees this as suspicious → triggers video selfie")
+            print()
+            
+            print("✅ THE SOLUTION:")
+            print("   Use StickyProxyManager to assign ONE consistent location per account")
+            print("   Account 16 always uses Phoenix, Arizona")
+            print("   Account 17 always uses Scottsdale, Arizona")
+            print("   Account 18 always uses Tempe, Arizona")
+            print("   etc.")
+            print()
+            
+            print("🎯 IMPLEMENTATION:")
+            print("   1. Replace your get_working_us_proxy_for_warmup() method")
+            print("   2. Each account gets a deterministic city based on account ID")
+            print("   3. Same session ID is reused for same account")
+            print("   4. Location changes are eliminated")
+            print()
+            
+        except Exception as e:
+            logger.error(f"💥 Error showing proxy patterns: {e}")
+
+    def fix_location_inconsistency_for_existing_accounts(self):
+        """Fix location inconsistency for accounts that haven't hit video selfie yet"""
+        try:
+            print("\n🔧 FIXING LOCATION INCONSISTENCY FOR EXISTING ACCOUNTS")
+            print("=" * 60)
+            
+            accounts = self.db.get_enhanced_active_accounts()
+            
+            # Filter accounts that are still usable (not requiring manual intervention)
+            fixable_accounts = [
+                acc for acc in accounts 
+                if acc.get('status') not in ['manual_intervention_required', 'banned', 'disabled']
+            ]
+            
+            if not fixable_accounts:
+                print("❌ No fixable accounts found")
+                return
+            
+            print(f"🔧 Found {len(fixable_accounts)} accounts that can be fixed:")
+            print()
+            
+            # Initialize sticky proxy manager
+            if not hasattr(self.warmup, 'sticky_proxy_manager'):
+                from sticky_proxy_manager import StickyProxyManager
+                self.warmup.sticky_proxy_manager = StickyProxyManager(self.config, self.db)
+            
+            for account in fixable_accounts:
+                account_id = account['account_id']
+                
+                print(f"🔧 Assigning consistent location to Account {account_id}...")
+                
+                # Get/assign sticky proxy
+                proxy = self.warmup.sticky_proxy_manager.get_consistent_proxy_for_account(account_id)
+                
+                if proxy:
+                    location = f"{proxy.get('verified_city', 'Unknown')}, {proxy.get('verified_region', 'Unknown')}"
+                    print(f"   ✅ Assigned: {location}")
+                    print(f"   🔒 This location is now PERMANENT for this account")
+                else:
+                    print(f"   ❌ Failed to assign location")
+                
+                print()
+            
+            print("🎯 NEXT STEPS:")
+            print("1. All existing accounts now have consistent location assignments")
+            print("2. Future logins will use the same location per account")
+            print("3. This should prevent new video selfie verifications")
+            print("4. Manually complete any pending video selfie verifications")
+            print()
+            
+        except Exception as e:
+            logger.error(f"💥 Error fixing location inconsistency: {e}")
+            print(f"❌ Fix failed: {e}")
     
     def show_enhanced_account_status(self):
         """Show account status with profile picture information"""
@@ -654,241 +888,7 @@ class EnhancedFacebookMarketplaceBot:
         except Exception as e:
             logger.error(f"💥 Error marking lead as messaged: {e}")
             return False
-def analyze_account_location_consistency(self):
-    """Analyze which accounts have inconsistent locations - ROOT CAUSE ANALYSIS"""
-    try:
-        print("\n🔍 LOCATION CONSISTENCY ANALYSIS")
-        print("=" * 60)
-        print("🎯 THEORY: Changing proxy locations cause video selfie verification")
-        print()
-        
-        # Get all accounts
-        accounts = self.db.get_enhanced_active_accounts()
-        
-        # Load existing location data if available
-        location_data = {}
-        try:
-            import json
-            if os.path.exists("account_data/location_history.json"):
-                with open("account_data/location_history.json", 'r') as f:
-                    location_data = json.load(f)
-        except:
-            pass
-        
-        # Analyze accounts
-        high_risk_accounts = []
-        medium_risk_accounts = []
-        low_risk_accounts = []
-        unknown_accounts = []
-        
-        for account in accounts:
-            account_id = str(account['account_id'])
-            
-            if account_id in location_data:
-                history = location_data[account_id]
-                locations = set()
-                
-                for record in history:
-                    location = f"{record.get('city', 'Unknown')}, {record.get('region', 'Unknown')}"
-                    locations.add(location)
-                
-                account_analysis = {
-                    'account': account,
-                    'unique_locations': len(locations),
-                    'locations': list(locations),
-                    'total_logins': len(history)
-                }
-                
-                if len(locations) >= 3:
-                    high_risk_accounts.append(account_analysis)
-                elif len(locations) == 2:
-                    medium_risk_accounts.append(account_analysis)
-                elif len(locations) == 1:
-                    low_risk_accounts.append(account_analysis)
-            else:
-                unknown_accounts.append(account)
-        
-        # Display results
-        print(f"📊 LOCATION ANALYSIS RESULTS:")
-        print(f"   🔴 HIGH RISK (3+ locations): {len(high_risk_accounts)} accounts")
-        print(f"   🟡 MEDIUM RISK (2 locations): {len(medium_risk_accounts)} accounts")  
-        print(f"   🟢 LOW RISK (1 location): {len(low_risk_accounts)} accounts")
-        print(f"   ❓ UNKNOWN (no data): {len(unknown_accounts)} accounts")
-        print()
-        
-        # Show high-risk accounts in detail
-        if high_risk_accounts:
-            print("🔴 HIGH RISK ACCOUNTS (Most likely to get video selfie verification):")
-            print("-" * 60)
-            for analysis in high_risk_accounts:
-                account = analysis['account']
-                print(f"  Account {account['account_id']} - {account.get('email', 'Unknown')[:30]}")
-                print(f"    📍 Used {analysis['unique_locations']} different locations:")
-                for location in analysis['locations']:
-                    print(f"      • {location}")
-                print(f"    📊 Total logins: {analysis['total_logins']}")
-                print(f"    📋 Status: {account.get('status', 'Unknown')}")
-                
-                # Check if this account has video selfie requirement
-                if account.get('status') == 'manual_intervention_required':
-                    print(f"    🚨 CONFIRMED: This account hit video selfie verification!")
-                
-                print()
-        
-        # Show medium-risk accounts
-        if medium_risk_accounts:
-            print("🟡 MEDIUM RISK ACCOUNTS (Could trigger video selfie):")
-            print("-" * 60)
-            for analysis in medium_risk_accounts:
-                account = analysis['account']
-                print(f"  Account {account['account_id']} - {account.get('email', 'Unknown')[:30]}")
-                print(f"    📍 Used 2 locations: {', '.join(analysis['locations'])}")
-                print(f"    📋 Status: {account.get('status', 'Unknown')}")
-                print()
-        
-        # Show recommendations
-        print("💡 RECOMMENDATIONS:")
-        print("-" * 60)
-        
-        if high_risk_accounts:
-            print("🔴 For HIGH RISK accounts:")
-            print("   1. Expect video selfie verification")
-            print("   2. Complete verification manually")
-            print("   3. After verification, use ONLY ONE consistent location")
-            print("   4. These become premium accounts after manual verification")
-            print()
-        
-        if medium_risk_accounts or high_risk_accounts:
-            print("🎯 For ALL accounts going forward:")
-            print("   1. Implement sticky proxy system (provided above)")
-            print("   2. Each account gets ONE consistent location")
-            print("   3. Never change locations for an account")
-            print("   4. Use account ID to deterministically assign locations")
-            print()
-        
-        print("🔧 IMMEDIATE ACTIONS:")
-        print("   1. Implement the StickyProxyManager code provided")
-        print("   2. Update get_working_us_proxy_for_warmup() method")
-        print("   3. Complete video selfie verification manually for flagged accounts")
-        print("   4. Test new accounts with consistent locations")
-        print()
-        
-        return {
-            'high_risk': len(high_risk_accounts),
-            'medium_risk': len(medium_risk_accounts), 
-            'low_risk': len(low_risk_accounts),
-            'unknown': len(unknown_accounts)
-        }
-        
-    except Exception as e:
-        logger.error(f"💥 Error analyzing location consistency: {e}")
-        print(f"❌ Analysis failed: {e}")
-        return None
 
-def show_proxy_location_patterns(self):
-    """Show patterns in proxy location usage"""
-    try:
-        print("\n📍 PROXY LOCATION PATTERNS ANALYSIS")
-        print("=" * 60)
-        
-        # This would analyze your SOAX proxy configuration
-        print("🔍 Current SOAX Configuration Analysis:")
-        
-        soax_configs = [
-            {'city': 'phoenix', 'region': 'arizona'},
-            {'city': 'losangeles', 'region': 'california'}, 
-            {'city': 'newyork', 'region': 'newyork'},
-            {'city': 'chicago', 'region': 'illinois'},
-            {'city': 'miami', 'region': 'florida'},
-            # Add Queen Creek and Scottsdale that appeared in your logs
-            {'city': 'queencreek', 'region': 'arizona'},
-            {'city': 'scottsdale', 'region': 'arizona'}
-        ]
-        
-        print("🌍 Locations your bot has been using:")
-        for config in soax_configs:
-            print(f"   • {config['city'].title()}, {config['region'].title()}")
-        
-        print()
-        print("🚨 THE PROBLEM:")
-        print("   Your current code randomly selects from these locations")
-        print("   Same account gets different cities on different logins")
-        print("   Facebook sees this as suspicious → triggers video selfie")
-        print()
-        
-        print("✅ THE SOLUTION:")
-        print("   Use StickyProxyManager to assign ONE consistent location per account")
-        print("   Account 16 always uses Phoenix, Arizona")
-        print("   Account 17 always uses Scottsdale, Arizona")
-        print("   Account 18 always uses Tempe, Arizona")
-        print("   etc.")
-        print()
-        
-        print("🎯 IMPLEMENTATION:")
-        print("   1. Replace your get_working_us_proxy_for_warmup() method")
-        print("   2. Each account gets a deterministic city based on account ID")
-        print("   3. Same session ID is reused for same account")
-        print("   4. Location changes are eliminated")
-        print()
-        
-    except Exception as e:
-        logger.error(f"💥 Error showing proxy patterns: {e}")
-
-def fix_location_inconsistency_for_existing_accounts(self):
-    """Fix location inconsistency for accounts that haven't hit video selfie yet"""
-    try:
-        print("\n🔧 FIXING LOCATION INCONSISTENCY FOR EXISTING ACCOUNTS")
-        print("=" * 60)
-        
-        accounts = self.db.get_enhanced_active_accounts()
-        
-        # Filter accounts that are still usable (not requiring manual intervention)
-        fixable_accounts = [
-            acc for acc in accounts 
-            if acc.get('status') not in ['manual_intervention_required', 'banned', 'disabled']
-        ]
-        
-        if not fixable_accounts:
-            print("❌ No fixable accounts found")
-            return
-        
-        print(f"🔧 Found {len(fixable_accounts)} accounts that can be fixed:")
-        print()
-        
-        # Initialize sticky proxy manager
-        if not hasattr(self, 'sticky_proxy_manager'):
-            from enhanced_warmup import StickyProxyManager  # You'll need to import this
-            self.sticky_proxy_manager = StickyProxyManager(self.config, self.db)
-        
-        for account in fixable_accounts:
-            account_id = account['account_id']
-            
-            print(f"🔧 Assigning consistent location to Account {account_id}...")
-            
-            # Get/assign sticky proxy
-            proxy = self.sticky_proxy_manager.get_consistent_proxy_for_account(account_id)
-            
-            if proxy:
-                location = f"{proxy.get('verified_city', 'Unknown')}, {proxy.get('verified_region', 'Unknown')}"
-                print(f"   ✅ Assigned: {location}")
-                print(f"   🔒 This location is now PERMANENT for this account")
-            else:
-                print(f"   ❌ Failed to assign location")
-            
-            print()
-        
-        print("🎯 NEXT STEPS:")
-        print("1. All existing accounts now have consistent location assignments")
-        print("2. Future logins will use the same location per account")
-        print("3. This should prevent new video selfie verifications")
-        print("4. Manually complete any pending video selfie verifications")
-        print()
-        
-    except Exception as e:
-        logger.error(f"💥 Error fixing location inconsistency: {e}")
-        print(f"❌ Fix failed: {e}")
-
-            
 
 def main():
     """Enhanced main entry point"""
